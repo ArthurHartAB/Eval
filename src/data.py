@@ -14,6 +14,8 @@ class Data:
         self.gt_df = self.load_gt()
         self.det_df = self.load_det()
 
+        self.det_df = self.det_df
+
     def load_labels(self):
         with open(self.labels_config_path, 'r') as f:
             self.labels_config = json.load(f)
