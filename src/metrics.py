@@ -79,7 +79,10 @@ class PRMetrics:
                         (det_filtered['match_status'] == 'fa_rand')
                     ].shape[0]
 
-                    # Assert that the number of true positives in GT matches the number of true positives in DET
+                    # Calculate total missed detections (MD) below the score threshold
+                    num_md_below_threshold = num_gt_md + num_gt_tp - num_det_tp_above_score
+
+                    # Precision and recall including ignored matches
                     precision_incl = num_det_tp_above_score / (
                         num_det_tp_above_score + num_det_fa_above_score + num_det_fa_loc_above_score + 
                         num_det_fa_dbl_above_score + num_det_fa_rand_above_score + 1e-9
@@ -96,7 +99,12 @@ class PRMetrics:
                         'bin': bin_label,
                         'score_threshold': score,
                         'precision': precision_incl,
-                        'recall': recall_incl
+                        'recall': recall_incl,
+                        'tp': num_det_tp_above_score,
+                        'fa_rand': num_det_fa_rand_above_score,
+                        'fa_loc': num_det_fa_loc_above_score,
+                        'fa_dbl': num_det_fa_dbl_above_score,
+                        'md': num_md_below_threshold
                     })
 
                     # Excluding matches with ignored GT
@@ -122,7 +130,12 @@ class PRMetrics:
                         'bin': bin_label,
                         'score_threshold': score,
                         'precision': precision_excl,
-                        'recall': recall_excl
+                        'recall': recall_excl,
+                        'tp': num_det_tp_above_score_excl,
+                        'fa_rand': num_det_fa_rand_above_score,
+                        'fa_loc': num_det_fa_loc_above_score,
+                        'fa_dbl': num_det_fa_dbl_above_score,
+                        'md': num_md_below_threshold
                     })
 
 
@@ -136,12 +149,17 @@ class PRMetrics:
                     'bin': metric['bin'],
                     'score_threshold': metric['score_threshold'],
                     'precision': metric['precision'],
-                    'recall': metric['recall']
+                    'recall': metric['recall'],
+                    'tp': metric['tp'],
+                    'fa_rand': metric['fa_rand'],
+                    'fa_loc': metric['fa_loc'],
+                    'fa_dbl': metric['fa_dbl'],
+                    'md': metric['md']
                 })
         
         metrics_df = pd.DataFrame(all_data)
         suffix = '_incl_ignores' if include_ignores else '_excl_ignores'
-        metrics_df.to_csv(f"{metrics_path}{suffix}.tsv", sep='\t', index=False)
+        metrics_df.to_csv(f"{metrics_path[:-4]}{suffix}.tsv", sep='\t', index=False)
 
 
     def plot_and_save_html(self, output_dir, include_ignores=True):
@@ -222,3 +240,4 @@ class PRMetrics:
             # Save the Recall vs FA plot as an HTML file
             html_file_recall_fa = os.path.join(output_dir, f'{category}_recall_vs_fa{suffix}.html')
             pyo.plot(fig_recall_fa, filename=html_file_recall_fa, auto_open=False)
+

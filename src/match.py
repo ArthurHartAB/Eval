@@ -215,6 +215,9 @@ class Matcher:
                         det_df.at[i, 'bin'] = bin_range
                         break
 
+        gt_df.loc[gt_df['bin'].isna(), 'bin'] = 'out_of_bins'
+        det_df.loc[det_df['bin'].isna(), 'bin'] = 'out_of_bins'
+
         return gt_df, det_df
 
 
