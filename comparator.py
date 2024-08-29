@@ -21,6 +21,25 @@ def load_metrics_data(eval_folders):
         }
     return eval_data
 
+# Function to extract the maximum value from bin strings and sort bins accordingly
+def sort_bins_by_max(bins):
+    def extract_max(bin_str):
+        max_value, min_value = bin_str.split('-')
+        return int(max_value)  # Convert to integer for numeric sorting
+
+    return sorted(bins, key=extract_max, reverse=True)
+
+# Function to darken a color
+def darken_color(rgb_color, factor=0.7):
+    # Extract RGB values from the 'rgb(r, g, b)' string
+    r, g, b = map(int, rgb_color[4:-1].split(', '))
+    # Apply the darkening factor
+    r = int(r * factor)
+    g = int(g * factor)
+    b = int(b * factor)
+    # Return the darkened RGB color as a string
+    return f'rgb({r}, {g}, {b})'
+
 def create_interactive_plots(eval_data, output_dir):
     # Ensure the output directory exists
     os.makedirs(output_dir, exist_ok=True)
@@ -32,9 +51,19 @@ def create_interactive_plots(eval_data, output_dir):
             if 'category' in df.columns:  # Assuming 'category' represents families
                 families.update(df['category'].unique())
 
+    # Define base colors for different folders
+    base_colors = {
+        'blue': 'rgb(0, 0, 255)',
+        'orange': 'rgb(255, 165, 0)',
+        'green': 'rgb(0, 128, 0)',
+        'red': 'rgb(255, 0, 0)',
+        'purple': 'rgb(128, 0, 128)'
+    }  # Base colors for different folders
+
     # Create one plot per family
     for family in families:
-        fig = make_subplots(rows=1, cols=1)
+        fig_pr = make_subplots(rows=1, cols=1)
+        fig_fa_rand = make_subplots(rows=1, cols=1)
 
         # Get unique bins corresponding to the current family
         bins_for_family = set()
@@ -44,30 +73,59 @@ def create_interactive_plots(eval_data, output_dir):
                     family_bins = df[df['category'] == family]['bin'].unique()
                     bins_for_family.update(family_bins)
 
-        all_bins = sorted(bins_for_family, reverse=True)  # Sort bins from largest to smallest
+        # Sort bins by maximum value
+        all_bins = sort_bins_by_max(bins_for_family)
         folders = list(eval_data.keys())
 
         # Store visibility for all combinations
-        visibility_map = []
+        visibility_map_pr = []
+        visibility_map_fa_rand = []
 
         # Plot data for each folder and bin
-        for folder in folders:
+        for folder_index, folder in enumerate(folders):
+            base_color_key = list(base_colors.keys())[folder_index % len(base_colors)]
+            base_color = base_colors[base_color_key]
+            darker_color = darken_color(base_color)  # Darker version of the base color
             for ignore_key, df in eval_data[folder].items():
                 if 'category' in df.columns and family in df['category'].values:
                     filtered_df = df[df['category'] == family]
                     for selected_bin in all_bins:
                         bin_data = filtered_df[(filtered_df['bin'] == selected_bin) & ((filtered_df['precision'] != 0) | (filtered_df['recall'] != 0))]  # Exclude points where both precision and recall are (0, 0)
 
-                        trace = go.Scatter(
+                        # Set color based on inclusion/exclusion key
+                        color = base_color if ignore_key == 'included' else darker_color
+
+                        # Add threshold values to be shown on hover
+                        hover_text = [f"Threshold: {t}" for t in bin_data['score_threshold']]
+
+                        # Precision-Recall Plot
+                        trace_pr = go.Scatter(
                             x=bin_data['recall'],
                             y=bin_data['precision'],
                             mode='lines+markers',
                             name=f'{folder} - {selected_bin} ({ignore_key})',
-                            visible=True  # Initially visible, controlled by buttons
+                            text=hover_text,  # Show threshold on hover
+                            hoverinfo='text+x+y',  # Display threshold with recall and precision
+                            visible=True,  # Initially visible, controlled by buttons
+                            marker=dict(color=color)  # Set color based on inclusion/exclusion
                         )
 
-                        fig.add_trace(trace)
-                        visibility_map.append((folder, selected_bin, trace))
+                        # fa_rand vs Recall Plot
+                        trace_fa_rand = go.Scatter(
+                            x=bin_data['recall'],
+                            y=bin_data['fa_rand'],
+                            mode='lines+markers',
+                            name=f'{folder} - {selected_bin} ({ignore_key})',
+                            text=hover_text,  # Show threshold on hover
+                            hoverinfo='text+x+y',  # Display threshold with recall and fa_rand
+                            visible=True,  # Initially visible, controlled by buttons
+                            marker=dict(color=color)  # Set color based on inclusion/exclusion
+                        )
+
+                        fig_pr.add_trace(trace_pr)
+                        fig_fa_rand.add_trace(trace_fa_rand)
+                        visibility_map_pr.append((folder, selected_bin, trace_pr))
+                        visibility_map_fa_rand.append((folder, selected_bin, trace_fa_rand))
 
         # Prepare button controls for bins
         bin_buttons = []
@@ -76,12 +134,12 @@ def create_interactive_plots(eval_data, output_dir):
                 dict(
                     label=f"Bin: {bin_value}",
                     method="update",
-                    args=[{"visible": [f' - {bin_value} ' in trace.name for trace in fig.data]}]
+                    args=[{"visible": [f' - {bin_value} ' in trace.name for trace in fig_pr.data]}]
                 )
             )
 
-        # Update layout with independent controls
-        fig.update_layout(
+        # Update layout with independent controls for PR plot
+        fig_pr.update_layout(
             updatemenus=[
                 dict(
                     buttons=bin_buttons,
@@ -96,15 +154,40 @@ def create_interactive_plots(eval_data, output_dir):
             title_text=f"Precision-Recall Curves Comparison for {family}"
         )
 
-        # Save the HTML file
-        html_output = os.path.join(output_dir, f'{family}_comparison_dashboard.html')
-        fig.write_html(html_output, auto_open=False)
+        # Update layout with independent controls for fa_rand vs recall plot
+        fig_fa_rand.update_layout(
+            updatemenus=[
+                dict(
+                    buttons=bin_buttons,
+                    direction="down",
+                    showactive=True,
+                    x=0.3,
+                    xanchor="left",
+                    y=1.15,
+                    yanchor="top"
+                )
+            ],
+            title_text=f"fa_rand vs Recall Comparison for {family}"
+        )
+
+        # Save the HTML files
+        html_output_pr = os.path.join(output_dir, f'{family}_pr_comparison_dashboard.html')
+        fig_pr.write_html(html_output_pr, auto_open=False)
+
+        html_output_fa_rand = os.path.join(output_dir, f'{family}_fa_rand_comparison_dashboard.html')
+        fig_fa_rand.write_html(html_output_fa_rand, auto_open=False)
 
 if __name__ == "__main__":
-    eval_folders = ["output/test1_greedy", "output/test0_greedy"]  # Add your eval folder paths here
-    output_dir = "comparison_outputs"
+    eval_folders = ["output/night_0_greedy", "output/night_0_hungarian"]  # Add your eval folder paths here
+    output_dir = "night_comparison_outputs_greedy_hung"
     eval_data = load_metrics_data(eval_folders)
     create_interactive_plots(eval_data, output_dir)
+
+
+
+
+
+
 
 
 

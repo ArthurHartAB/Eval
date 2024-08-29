@@ -10,12 +10,12 @@ import time
 if __name__ == '__main__':
     
     # Initialize the FolderManager
-    folder_manager = FM("/home/arthur/Desktop/Eval/output/test1_greedy")
+    folder_manager = FM("/home/arthur/Desktop/Eval/output/night_0_greedy")
     folder_manager.create_output_folders()
     
     # Load data
-    gt_path = "./dfs/gt_old.tsv"
-    det_path = "./dfs/res_df_ep1.tsv"
+    gt_path = "./dfs/night/gt.tsv"
+    det_path = "./dfs/night/res_df_ep0.tsv"
     labels_config_path = "./src/configs/labels.json"
     bins_config_path = "./src/configs/bins.json"
     
@@ -28,6 +28,7 @@ if __name__ == '__main__':
     matcher = ParallelGreedyMatcher(n_jobs=5)
     #matcher = ParallelMatcher(n_jobs=5)  # Use all available cores
     #matcher = Matcher()
+    #matcher = GreedyMatcher()
 
     t = time.time()
     matcher.process_data(data)
@@ -39,7 +40,8 @@ if __name__ == '__main__':
     # Compute and save metrics
     metrics = PRMetrics()
     metrics.compute(data)
-    metrics.save(folder_manager.metrics_paths)
+    metrics.save(folder_manager.metrics_paths,include_ignores=True)
+    metrics.save(folder_manager.metrics_paths, include_ignores=False)
     
     # Generate and save PR curve plots as HTML files
     metrics.plot_and_save_html(folder_manager.plots_output_dir, include_ignores=True)

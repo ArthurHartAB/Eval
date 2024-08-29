@@ -93,19 +93,23 @@ class Matcher:
         return iou_matrix
 
     def calculate_cost_matrix(self, iou_matrix, scores, eval_ignore):
-        cost_matrix = -iou_matrix*0 #np.zeros_like(iou_matrix)
+        # Initialize the cost matrix
+        cost_matrix = -iou_matrix * 0.01  # Initialize cost matrix
 
         # Penalize low scores by adding a small negative value to the cost
         for j, score in enumerate(scores):
-            cost_matrix[:, j] -= score# Smaller penalty for low scores
+            cost_matrix[:, j] -= score  # Smaller penalty for low scores
 
         # Adjust cost for ignored ground truths
         for i, ignore in enumerate(eval_ignore):
             if ignore:
+                # If ground truth is ignored, set IoU threshold to 0.01
                 cost_matrix[i, :] *= 0.5  # Reduce the matching score by half
+                cost_matrix[i, iou_matrix[i, :] < 0.5] = 100  # High cost for IoU below 0.01
+            else:
+                # Regular ground truth, use IoU threshold of 0.5
+                cost_matrix[i, iou_matrix[i, :] < 0.5] = 100  # High cost for IoU below 0.5
 
-        # Set cost to a very high value (large number) for pairs with IoU < 0.5
-        cost_matrix[iou_matrix < 0.5] = 100
         return cost_matrix
 
     def match(self, cost_matrix, scores):
@@ -219,7 +223,6 @@ class Matcher:
         det_df.loc[det_df['bin'].isna(), 'bin'] = 'out_of_bins'
 
         return gt_df, det_df
-
 
 
 
