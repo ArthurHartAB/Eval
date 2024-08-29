@@ -1,5 +1,10 @@
 import numpy as np
 from scipy.optimize import linear_sum_assignment
+from scipy.sparse.csgraph import min_weight_full_bipartite_matching
+from scipy.sparse.csgraph import maximum_bipartite_matching
+
+from scipy.sparse import csr_matrix
+
 import pandas as pd
 from tqdm import tqdm
 from joblib import Parallel, delayed
@@ -112,18 +117,16 @@ class Matcher:
 
         return cost_matrix
 
+
     def match(self, cost_matrix, scores):
         # Perform the assignment using the Hungarian algorithm
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
-    
-        # Create a list to store the match results
+       
         match_result = []
     
-        # Set to keep track of which GTs and Detections have been matched
         matched_gt = set()
         matched_det = set()
     
-        # Iterate over the matches
         for r, c in zip(row_ind, col_ind):
             if cost_matrix[r, c] < 0:
                 # Ensure that the match is one-to-one
@@ -133,7 +136,7 @@ class Matcher:
                 match_result.append((r, c))
                 matched_gt.add(r)
                 matched_det.add(c)
-    
+        
         # Return the one-to-one match result
         return match_result
 
@@ -169,6 +172,7 @@ class Matcher:
             if gt_df.at[gt_idx, 'match_status'] == 'md':
                 if iou_matrix.shape[1] > 0:  # Ensure there are detection boxes
                     gt_df.at[gt_idx, 'max_iou'] = iou_matrix[gt_i, :].max()
+                    #gt_df.at[gt_idx, 'match_status'] = 'md_dbl'
 
     # Identify max IoU for unmatched DET (false alarms)
         for det_i, det_idx in det_index_map.items():
