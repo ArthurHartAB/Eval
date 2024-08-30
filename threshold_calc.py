@@ -168,7 +168,7 @@ def plot_threshold_analysis(data, config, output_dir):
                         x=[incl_threshold, incl_threshold],
                         y=[0, 100],
                         mode='lines+markers',
-                        name=f'Bin {bin_value} score {excl_min_score}',
+                        name=f'Bin {bin_value} score {incl_min_score}',
                         line=dict(color='Grey'),
                         visible=(bin_value == bins[0])
                     )

@@ -3,20 +3,20 @@
         "gt_labels" : ["CAR", "CAR_CIPV", "VAN_NLV", "TRUCK", "VAN", "CAR_NLV", 
                        "BUS", "TRUCK_NLV", "BUS_CIPV", "TRUCK_CIPV", "BUS_NLV", 
                        "VAN_CIPV", "TRAILER", "TOW_TRUCK", "RV", "CONSTRUCTION_VEHICLE"],
-        "det_labels" : ["4w", "4w_ignore"],
-        "gt_ignore_condition" : "(ignore_state > 1) or (is_blurry) or (is_occluded)"
+        "det_labels" : ["4w", "4w_ignore", "4w_remove"],
+        "gt_ignore_condition" : "(ignore_state > 0)"
 
     },
     "ped" : {
         "gt_labels" : ["PERSON", "PERSON_MCP", "CHILD", "CHILD_MCP", "PEDESTRIAN", "PEDESTRIAN_MCP"],
-        "det_labels" : ["ped", "ped_ignore"],
-        "gt_ignore_condition" :  "(ignore_state > 1) or (is_blurry) or (is_occluded)"
+        "det_labels" : ["ped", "ped_ignore", "ped_remove"],
+        "gt_ignore_condition" :  "(ignore_state > 0)"
 
     },
     "2w" : {
         "gt_labels" : [],
         "det_labels" : [],
-        "gt_ignore_condition" :  "(ignore_state > 1) or (is_blurry) or (is_occluded)"
+        "gt_ignore_condition" :  "(ignore_state > 0)"
 
     }
 

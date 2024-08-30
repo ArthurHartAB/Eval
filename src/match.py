@@ -1,18 +1,12 @@
 import numpy as np
 from scipy.optimize import linear_sum_assignment
-from scipy.sparse.csgraph import min_weight_full_bipartite_matching
-from scipy.sparse.csgraph import maximum_bipartite_matching
-
-from scipy.sparse import csr_matrix
-
 import pandas as pd
 from tqdm import tqdm
 from joblib import Parallel, delayed
 
 
-class Matcher:
-
-    def process_data(self, data):
+class HungarianMatcher:
+    def process(self, data):
         # Initialize lists to store the processed DataFrames for all families
         all_gt_dfs = []
         all_det_dfs = []
@@ -117,16 +111,18 @@ class Matcher:
 
         return cost_matrix
 
-
     def match(self, cost_matrix, scores):
         # Perform the assignment using the Hungarian algorithm
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
-       
+    
+        # Create a list to store the match results
         match_result = []
     
+        # Set to keep track of which GTs and Detections have been matched
         matched_gt = set()
         matched_det = set()
     
+        # Iterate over the matches
         for r, c in zip(row_ind, col_ind):
             if cost_matrix[r, c] < 0:
                 # Ensure that the match is one-to-one
@@ -136,7 +132,7 @@ class Matcher:
                 match_result.append((r, c))
                 matched_gt.add(r)
                 matched_det.add(c)
-        
+    
         # Return the one-to-one match result
         return match_result
 
@@ -171,8 +167,22 @@ class Matcher:
         for gt_i, gt_idx in gt_index_map.items():
             if gt_df.at[gt_idx, 'match_status'] == 'md':
                 if iou_matrix.shape[1] > 0:  # Ensure there are detection boxes
-                    gt_df.at[gt_idx, 'max_iou'] = iou_matrix[gt_i, :].max()
-                    #gt_df.at[gt_idx, 'match_status'] = 'md_dbl'
+                    max_iou = iou_matrix[gt_i, :].max()
+                    gt_df.at[gt_idx, 'max_iou'] = max_iou
+
+                    #if max_iou > 0.5:
+                    #    gt_df.at[gt_idx, 'match_status'] = 'md_dbl'
+                    #elif max_iou > 0.3:
+                    #    gt_df.at[gt_idx, 'match_status'] = 'md_loc'
+                    #else:
+                    #    gt_df.at[gt_idx, 'match_status'] = 'md_rand'
+
+                    #scores_iou_loc = det_df.loc[iou_matrix[gt_i, :] > 0.3, 'score']
+                    #scores_iou_dbl = det_df.loc[iou_matrix[gt_i, :] > 0.5, 'score']
+
+                    #if not scores_iou_05.empty:
+                    #    md_dbl_score = scores_iou_05.max()
+                    #    gt_df.at[gt_idx, 'match_status'] = 'md_dbl'
 
     # Identify max IoU for unmatched DET (false alarms)
         for det_i, det_idx in det_index_map.items():
@@ -230,12 +240,12 @@ class Matcher:
 
 
 
-class ParallelMatcher(Matcher):
-    def __init__(self, n_jobs=-1):
+class ParallelHungarianMatcher(HungarianMatcher):
+    def __init__(self, n_jobs=5):
         super().__init__()
         self.n_jobs = n_jobs
 
-    def process_data(self, data):
+    def process(self, data):
         # Initialize lists to store the processed DataFrames for all families
         all_gt_dfs = []
         all_det_dfs = []
@@ -276,7 +286,7 @@ class ParallelMatcher(Matcher):
         data.det_df = pd.concat(all_det_dfs, ignore_index=True)
 
 
-class GreedyMatcher(Matcher):
+class GreedyMatcher(HungarianMatcher):
 
     def match(self, cost_matrix, scores):
         # Initialize arrays to keep track of matched ground truths and detections
@@ -311,8 +321,8 @@ class GreedyMatcher(Matcher):
 
         return match_result
 
-class ParallelGreedyMatcher(ParallelMatcher, GreedyMatcher):
-    def __init__(self, n_jobs=-1):
+class ParallelGreedyMatcher(ParallelHungarianMatcher, GreedyMatcher):
+    def __init__(self, n_jobs=5):
         # Initialize both parent classes
-        ParallelMatcher.__init__(self, n_jobs=n_jobs)
+        ParallelHungarianMatcher.__init__(self, n_jobs=n_jobs)
         GreedyMatcher.__init__(self)
