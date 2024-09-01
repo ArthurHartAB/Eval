@@ -51,5 +51,6 @@ if __name__ == "__main__":
     plotter = Plotter(data.plot_config)
     metrics_dict = metrics.get_metrics_data()  # Get metrics data directly from the Metrics instance
     plotter.create_plots(metrics_dict)
+    print ("plots created")
     plotter.save(args.output_path)
 

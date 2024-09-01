@@ -1,20 +1,12 @@
 {
     "plots": [
         {
-            "x_metric": "recall",
-            "y_metrics": "precision",
-            "plot_name": "Precision-Recall Curve",
-            "x_label": "Recall",
-            "y_label": "Precision",
-            "file_suffix": "pr_curve"
-        },
-        {
-            "x_metric": "recall",
-            "y_metrics": "fa_rand + fa_dbl + fa_loc",
-            "plot_name": "Recall vs False Alarms",
-            "x_label": "Recall",
-            "y_label": "False Alarms",
-            "file_suffix": "recall_vs_fas"
+            "x_metric": "recall_strict",
+            "y_metrics": "precision_strict",
+            "plot_name": "Precision Strict-Recall Strict",
+            "x_label": "Recall Strict",
+            "y_label": "Precision Strict",
+            "file_suffix": "pr_curve_strict"
         }
     ]
 }

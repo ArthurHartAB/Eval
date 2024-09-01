@@ -62,7 +62,7 @@ class HungarianMatcher:
         gt_filtered, det_filtered = self.add_match_columns(gt_filtered, det_filtered, match_result, iou_matrix)
 
         # Add bin columns based on the bins configuration
-        gt_filtered, det_filtered = self.add_bin_column(gt_filtered, det_filtered, bins)
+        gt_filtered, det_filtered = self.add_bin_column(gt_filtered, det_filtered, bins, match_result)
 
         return gt_filtered, det_filtered
 
@@ -104,10 +104,8 @@ class HungarianMatcher:
             if ignore:
                 # If ground truth is ignored, set IoU threshold to 0.01
                 cost_matrix[i, :] *= 0.5  # Reduce the matching score by half
-                cost_matrix[i, iou_matrix[i, :] < 0.5] = 100  # High cost for IoU below 0.01
-            else:
-                # Regular ground truth, use IoU threshold of 0.5
-                cost_matrix[i, iou_matrix[i, :] < 0.5] = 100  # High cost for IoU below 0.5
+            
+            cost_matrix[i, iou_matrix[i, :] < 0.5] = 100  # High cost for IoU below 0.5
 
         return cost_matrix
 
@@ -137,9 +135,12 @@ class HungarianMatcher:
         return match_result
 
     def add_match_columns(self, gt_df, det_df, match_result, iou_matrix):
-    # Initialize columns
+        # Initialize columns
         gt_df['max_iou'] = 0.0
         gt_df['match_status'] = 'md'
+        gt_df['det_score'] = -1.0
+        gt_df['md_loc_score'] = -1.0
+        gt_df['md_dbl_score'] = -1.0
         det_df['max_iou'] = 0.0
         det_df['match_status'] = 'fa'
         det_df['eval_ignore'] = False
@@ -159,86 +160,100 @@ class HungarianMatcher:
                 gt_df.at[gt_df_idx, 'match_status'] = 'tp'
                 det_df.at[det_df_idx, 'max_iou'] = iou
                 det_df.at[det_df_idx, 'match_status'] = 'tp'
+
+                # Ensure that the eval_ignore flag is correctly transferred
                 det_df.at[det_df_idx, 'eval_ignore'] = gt_df.at[gt_df_idx, 'eval_ignore']
-            else:
-                print(f"Warning: Invalid gt_idx ({gt_idx}) or det_idx ({det_idx}) in match_result")
 
-    # Identify max IoU for unmatched GT (missed detections)
+                # Store the detection score
+                gt_df.at[gt_df_idx, 'det_score'] = det_df.at[det_df_idx, 'score']
+
+        # Process all GT bboxes for max IoU and scores for various thresholds
         for gt_i, gt_idx in gt_index_map.items():
-            if gt_df.at[gt_idx, 'match_status'] == 'md':
-                if iou_matrix.shape[1] > 0:  # Ensure there are detection boxes
-                    max_iou = iou_matrix[gt_i, :].max()
-                    gt_df.at[gt_idx, 'max_iou'] = max_iou
+            if iou_matrix.shape[1] > 0:  # Ensure there are detection boxes
+                max_iou = iou_matrix[gt_i, :].max()
+                gt_df.at[gt_idx, 'max_iou'] = max_iou
 
-                    #if max_iou > 0.5:
-                    #    gt_df.at[gt_idx, 'match_status'] = 'md_dbl'
-                    #elif max_iou > 0.3:
-                    #    gt_df.at[gt_idx, 'match_status'] = 'md_loc'
-                    #else:
-                    #    gt_df.at[gt_idx, 'match_status'] = 'md_rand'
+                # Find scores for IoU conditions
+                scores_iou_loc = det_df.loc[iou_matrix[gt_i, :] > 0.3, 'score']
+                scores_iou_dbl = det_df.loc[iou_matrix[gt_i, :] > 0.5, 'score']
 
-                    #scores_iou_loc = det_df.loc[iou_matrix[gt_i, :] > 0.3, 'score']
-                    #scores_iou_dbl = det_df.loc[iou_matrix[gt_i, :] > 0.5, 'score']
+                # Get max scores for IoU > 0.3 and IoU > 0.5
+                if not scores_iou_loc.empty:
+                    gt_df.at[gt_idx, 'md_loc_score'] = scores_iou_loc.max()
+                if not scores_iou_dbl.empty:
+                    gt_df.at[gt_idx, 'md_dbl_score'] = scores_iou_dbl.max()
 
-                    #if not scores_iou_05.empty:
-                    #    md_dbl_score = scores_iou_05.max()
-                    #    gt_df.at[gt_idx, 'match_status'] = 'md_dbl'
+            # Update the match status for missed detections
+                if gt_df.at[gt_idx, 'match_status'] == 'md':
+                    if gt_df.at[gt_idx, 'md_dbl_score'] != -1:
+                        gt_df.at[gt_idx, 'match_status'] = 'md_dbl'
+                    elif gt_df.at[gt_idx, 'md_loc_score'] != -1:
+                        gt_df.at[gt_idx, 'match_status'] = 'md_loc'
+                    else:
+                        gt_df.at[gt_idx, 'match_status'] = 'md_rand'
 
-    # Identify max IoU for unmatched DET (false alarms)
+        # Determine the type of false alarms for DET that are not matched (fa)
         for det_i, det_idx in det_index_map.items():
             if det_df.at[det_idx, 'match_status'] == 'fa':
-                if iou_matrix.shape[0] > 0:  # Ensure there are ground truth boxes
-                    max_iou = iou_matrix[:, det_i].max()
-                    det_df.at[det_idx, 'max_iou'] = max_iou
-                    if max_iou > 0.5:
-                        det_df.at[det_idx, 'match_status'] = 'fa_dbl'
-                    elif max_iou > 0.3:
-                        det_df.at[det_idx, 'match_status'] = 'fa_loc'
-                    else:
-                        det_df.at[det_idx, 'match_status'] = 'fa_rand'
+                max_iou_with_any_gt = iou_matrix[:, det_i].max()  # Maximum IoU of this detection with any GT
 
-        assert (len(gt_df[(gt_df.match_status == 'tp') & gt_df.eval_ignore]) == \
-                       len(det_df[(det_df.match_status == 'tp') & det_df.eval_ignore])), \
-                       "eval_ignore tp different between gt and det"
+                if max_iou_with_any_gt > 0.5:
+                    det_df.at[det_idx, 'match_status'] = 'fa_dbl'
+                elif max_iou_with_any_gt > 0.3:
+                    det_df.at[det_idx, 'match_status'] = 'fa_loc'
+                else:
+                    det_df.at[det_idx, 'match_status'] = 'fa_rand'
+
+        # Ensure the number of true positives with eval_ignore is consistent
+        assert (len(gt_df[(gt_df.match_status == 'tp') & gt_df.eval_ignore]) ==
+                len(det_df[(det_df.match_status == 'tp') & det_df.eval_ignore])), \
+            "eval_ignore tp different between gt and det"
 
         return gt_df, det_df
+
+
     
 
-    def add_bin_column(self, gt_df, det_df, bins):
-    # Add a 'bin' column to gt_df and det_df initialized to None
+    def add_bin_column(self, gt_df, det_df, bins, match_result):
+        # Add a 'bin' column to gt_df and det_df initialized to None
         gt_df['bin'] = None
         det_df['bin'] = None
 
-    # Assign bins to GT boxes based on height
-        for i, row in gt_df.iterrows():
+        # Create mappings of DataFrame indices to IoU matrix indices
+        gt_index_map = {i: idx for i, idx in enumerate(gt_df.index)}
+        det_index_map = {i: idx for i, idx in enumerate(det_df.index)}
+
+        # Assign bins to GT boxes based on height
+        for gt_i, gt_idx in gt_index_map.items():
             for bin_range in bins:
                 min_height, max_height = map(int, bin_range.split('-'))
-                if min_height <= row['height'] < max_height:
-                    gt_df.at[i, 'bin'] = bin_range
+                if min_height <= gt_df.at[gt_idx, 'height'] < max_height:
+                    gt_df.at[gt_idx, 'bin'] = bin_range
                     break
 
-    # For matched DET, assign the same bin as their corresponding GT
-        for i, row in det_df.iterrows():
-            if row['match_status'] == 'tp':
-                matched_gt_idx = gt_df.index[gt_df['max_iou'] == row['max_iou']].tolist()
-                if matched_gt_idx:
-                    det_df.at[i, 'bin'] = gt_df.at[matched_gt_idx[0], 'bin']
+        # For matched DET, assign the same bin as their corresponding GT using match_result
+        for gt_idx, det_idx in match_result:
+            if gt_idx in gt_index_map and det_idx in det_index_map:
+                gt_df_idx = gt_index_map[gt_idx]
+                det_df_idx = det_index_map[det_idx]
+                
+                # Assign the bin of the matched GT to the detection
+                det_df.at[det_df_idx, 'bin'] = gt_df.at[gt_df_idx, 'bin']
 
-    # For unmatched DET, calculate the bin based on their height
-        for i, row in det_df.iterrows():
-            if row['match_status'] != 'tp':  # Only for unmatched detections
+        # For unmatched DET, calculate the bin based on their height
+        for det_i, det_idx in det_index_map.items():
+            if det_df.at[det_idx, 'match_status'] != 'tp':  # Only for unmatched detections
                 for bin_range in bins:
                     min_height, max_height = map(int, bin_range.split('-'))
-                    if min_height <= row['height'] < max_height:
-                        det_df.at[i, 'bin'] = bin_range
+                    if min_height <= det_df.at[det_idx, 'height'] < max_height:
+                        det_df.at[det_idx, 'bin'] = bin_range
                         break
 
+        # Handle any unmatched bins
         gt_df.loc[gt_df['bin'].isna(), 'bin'] = 'out_of_bins'
         det_df.loc[det_df['bin'].isna(), 'bin'] = 'out_of_bins'
 
         return gt_df, det_df
-
-
 
 class ParallelHungarianMatcher(HungarianMatcher):
     def __init__(self, n_jobs=5):
@@ -326,3 +341,28 @@ class ParallelGreedyMatcher(ParallelHungarianMatcher, GreedyMatcher):
         # Initialize both parent classes
         ParallelHungarianMatcher.__init__(self, n_jobs=n_jobs)
         GreedyMatcher.__init__(self)
+
+
+class HungarianIouMatcher(HungarianMatcher):
+    def __init__(self):
+        HungarianMatcher.__init__(self)
+    
+    def calculate_cost_matrix(self, iou_matrix, scores, eval_ignore):
+        # Initialize the cost matrix
+        cost_matrix = -iou_matrix  # Initialize cost matrix
+
+        # Penalize low scores by adding a small negative value to the cost
+
+        # Adjust cost for ignored ground truths
+        for i, ignore in enumerate(eval_ignore):
+            if ignore:
+                cost_matrix[i, :] *= 0.5  # Reduce the matching score by half
+            cost_matrix[i, iou_matrix[i, :] < 0.5] = 100  # High cost for IoU below 0.5
+
+        return cost_matrix
+    
+class ParallelHungarianIouMatcher(ParallelHungarianMatcher, HungarianIouMatcher):
+    def __init__(self, n_jobs=5):
+        # Initialize both parent classes
+        ParallelHungarianMatcher.__init__(self, n_jobs=n_jobs)
+        HungarianIouMatcher.__init__(self)
