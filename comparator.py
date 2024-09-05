@@ -15,7 +15,7 @@ def load_metrics_data(eval_folders):
         excluded_metrics_path = os.path.join(folder, "metrics_excl_ignores.tsv")
 
         eval_data[eval_name] = {
-            #'included': pd.read_csv(included_metrics_path, sep='\t'),
+            'included': pd.read_csv(included_metrics_path, sep='\t'),
             'excluded': pd.read_csv(excluded_metrics_path, sep='\t')
         }
     return eval_data
@@ -32,17 +32,19 @@ def create_and_save_plots(eval_data, plot_config, output_dir):
     excluded_data = {}
 
     for eval_name, data in eval_data.items():
-        #included_data[eval_name] = data['included']
+        included_data[eval_name] = data['included']
         excluded_data[eval_name] = data['excluded'][data['excluded'].bin != 'other']
-        excluded_data[eval_name] = excluded_data[eval_name][excluded_data[eval_name].score_threshold > 10]
+
+        #included_data[eval_name] = included_data[eval_name][included_data[eval_name].score_threshold >= 10]
+        #excluded_data[eval_name] = excluded_data[eval_name][excluded_data[eval_name].score_threshold >= 10]
 
     # Initialize plotters for "included" and "excluded"
-    #plotter_incl = Plotter(plot_config)
+    plotter_incl = Plotter(plot_config)
     plotter_excl = Plotter(plot_config)
 
     # Create and save plots for "included" data
-    #plotter_incl.create_plots(included_data)
-    #plotter_incl.save(output_dir, "incl_ignores")
+    plotter_incl.create_plots(included_data)
+    plotter_incl.save(output_dir, "incl_ignores")
 
     # Create and save plots for "excluded" data
     plotter_excl.create_plots(excluded_data)

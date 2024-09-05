@@ -4,6 +4,14 @@ import pandas as pd
 from tqdm import tqdm
 from joblib import Parallel, delayed
 
+IGNORE_WEIGHT = 0.1
+NON_MATCHING_COST = 0
+BASE_MATCH_COST = -20
+IOU_MATCH_WEIGHT = 0.01
+SCORE_MATCH_WEIGHT = 1.0
+
+MATCH_IOU = 0.5
+LOC_IOU = 0.3
 
 class HungarianMatcher:
     def process(self, data):
@@ -56,7 +64,7 @@ class HungarianMatcher:
         cost_matrix = self.calculate_cost_matrix(iou_matrix, det_scores, gt_filtered['eval_ignore'].values)
 
         # Perform matching
-        match_result = self.match(cost_matrix, det_scores)
+        match_result = self.match(cost_matrix, det_scores, gt_filtered['eval_ignore'].values)
 
         # Add max_iou and match_status columns to the filtered DataFrames
         gt_filtered, det_filtered = self.add_match_columns(gt_filtered, det_filtered, match_result, iou_matrix)
@@ -93,23 +101,24 @@ class HungarianMatcher:
 
     def calculate_cost_matrix(self, iou_matrix, scores, eval_ignore):
         # Initialize the cost matrix
-        cost_matrix = -iou_matrix * 0.01  # Initialize cost matrix
+        cost_matrix = -iou_matrix * IOU_MATCH_WEIGHT + BASE_MATCH_COST  # Initialize cost matrix
 
         # Penalize low scores by adding a small negative value to the cost
         for j, score in enumerate(scores):
-            cost_matrix[:, j] -= score  # Smaller penalty for low scores
+            cost_matrix[:, j] -= score * SCORE_MATCH_WEIGHT  # Smaller penalty for low scores
 
         # Adjust cost for ignored ground truths
         for i, ignore in enumerate(eval_ignore):
             if ignore:
                 # If ground truth is ignored, set IoU threshold to 0.01
-                cost_matrix[i, :] *= 0.5  # Reduce the matching score by half
+                cost_matrix[i, :] *= IGNORE_WEIGHT  # Reduce the matching score by half
             
-            cost_matrix[i, iou_matrix[i, :] < 0.5] = 100  # High cost for IoU below 0.5
+        
+        cost_matrix[iou_matrix < MATCH_IOU] = NON_MATCHING_COST  # High cost for IoU below 0.5
 
         return cost_matrix
 
-    def match(self, cost_matrix, scores):
+    def match(self, cost_matrix, scores, eval_ignore):
         # Perform the assignment using the Hungarian algorithm
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
     
@@ -122,7 +131,7 @@ class HungarianMatcher:
     
         # Iterate over the matches
         for r, c in zip(row_ind, col_ind):
-            if cost_matrix[r, c] < 0:
+            if cost_matrix[r, c] < NON_MATCHING_COST:
                 # Ensure that the match is one-to-one
                 if r in matched_gt or c in matched_det:
                     raise ValueError(f"Non-unique matching detected: GT {r} or DET {c} is already matched.")
@@ -174,8 +183,8 @@ class HungarianMatcher:
                 gt_df.at[gt_idx, 'max_iou'] = max_iou
 
                 # Find scores for IoU conditions
-                scores_iou_loc = det_df.loc[iou_matrix[gt_i, :] > 0.3, 'score']
-                scores_iou_dbl = det_df.loc[iou_matrix[gt_i, :] > 0.5, 'score']
+                scores_iou_loc = det_df.loc[iou_matrix[gt_i, :] > LOC_IOU, 'score']
+                scores_iou_dbl = det_df.loc[iou_matrix[gt_i, :] > MATCH_IOU, 'score']
 
                 # Get max scores for IoU > 0.3 and IoU > 0.5
                 if not scores_iou_loc.empty:
@@ -197,9 +206,9 @@ class HungarianMatcher:
             if det_df.at[det_idx, 'match_status'] == 'fa':
                 max_iou_with_any_gt = iou_matrix[:, det_i].max()  # Maximum IoU of this detection with any GT
 
-                if max_iou_with_any_gt > 0.5:
+                if max_iou_with_any_gt > MATCH_IOU:
                     det_df.at[det_idx, 'match_status'] = 'fa_dbl'
-                elif max_iou_with_any_gt > 0.3:
+                elif max_iou_with_any_gt > LOC_IOU:
                     det_df.at[det_idx, 'match_status'] = 'fa_loc'
                 else:
                     det_df.at[det_idx, 'match_status'] = 'fa_rand'
@@ -303,7 +312,7 @@ class ParallelHungarianMatcher(HungarianMatcher):
 
 class GreedyMatcher(HungarianMatcher):
 
-    def match(self, cost_matrix, scores):
+    def match(self, cost_matrix, scores, eval_ignore):
         # Initialize arrays to keep track of matched ground truths and detections
         num_gt, num_det = cost_matrix.shape
         gt_matched = np.full(num_gt, False, dtype=bool)
@@ -317,7 +326,7 @@ class GreedyMatcher(HungarianMatcher):
         # Greedily match detections to ground truths
         for det_idx in sorted_det_indices:
             best_gt_idx = -1
-            best_cost = 100
+            best_cost = NON_MATCHING_COST
 
             for gt_idx in range(num_gt):
                 if gt_matched[gt_idx]:
@@ -328,7 +337,7 @@ class GreedyMatcher(HungarianMatcher):
                     best_cost = cost
                     best_gt_idx = gt_idx
 
-            if best_gt_idx >= 0 and best_cost < 0:
+            if best_gt_idx >= 0 and best_cost < NON_MATCHING_COST:
                 # Mark the ground truth and detection as matched
                 gt_matched[best_gt_idx] = True
                 det_matched[det_idx] = True
@@ -356,13 +365,76 @@ class HungarianIouMatcher(HungarianMatcher):
         # Adjust cost for ignored ground truths
         for i, ignore in enumerate(eval_ignore):
             if ignore:
-                cost_matrix[i, :] *= 0.5  # Reduce the matching score by half
-            cost_matrix[i, iou_matrix[i, :] < 0.5] = 100  # High cost for IoU below 0.5
+                cost_matrix[i, :] *= IGNORE_WEIGHT  # Reduce the matching score by half
+            cost_matrix[i, iou_matrix[i, :] < MATCH_IOU] = NON_MATCHING_COST  # High cost for IoU below 0.5
 
         return cost_matrix
     
-class ParallelHungarianIouMatcher(ParallelHungarianMatcher, HungarianIouMatcher):
+class TwoStageHungarianMatcher(HungarianMatcher):
+    def match(self, cost_matrix, scores, eval_ignore):
+        # Split the cost matrix into two stages: non-ignored and ignored
+        non_ignored_indices = np.where(~eval_ignore)[0]  # Indices of non-ignored ground truths
+        ignored_indices = np.where(eval_ignore)[0]  # Indices of ignored ground truths
+
+        # Separate cost matrix for non-ignored ground truths
+        cost_matrix_non_ignored = cost_matrix[non_ignored_indices, :]
+
+        # Perform the first stage of matching with non-ignored ground truths
+        row_ind_non_ignored, col_ind_non_ignored = linear_sum_assignment(cost_matrix_non_ignored)
+
+        # Map the non-ignored matches back to the original cost matrix indices
+        row_ind = non_ignored_indices[row_ind_non_ignored]
+        col_ind = col_ind_non_ignored
+
+        # Initialize the match result with non-ignored matches
+        match_result = list(zip(row_ind, col_ind))
+
+        # Filter out matches with costs below NON_MATCHING_COST after the first stage
+        valid_match_result = [(r, c) for r, c in match_result if cost_matrix[r, c] < NON_MATCHING_COST]
+
+        # Identify already matched detections to remove them from the second stage
+        matched_detections = set(c for _, c in valid_match_result)
+
+        # Filter out already matched detections from the cost matrix for ignored ground truths
+        remaining_det_indices = [i for i in range(cost_matrix.shape[1]) if i not in matched_detections]
+        cost_matrix_ignored = cost_matrix[ignored_indices, :][:, remaining_det_indices]
+
+        # Perform the second stage of matching with ignored ground truths on remaining matches
+        if cost_matrix_ignored.size > 0:  # Ensure there are remaining detections
+            row_ind_ignored, col_ind_ignored = linear_sum_assignment(cost_matrix_ignored)
+
+            # Map the ignored matches back to the original cost matrix indices
+            row_ind_ignored = ignored_indices[row_ind_ignored]
+            col_ind_ignored = [remaining_det_indices[i] for i in col_ind_ignored]
+
+            # Append the ignored matches to the match result
+            ignored_match_result = list(zip(row_ind_ignored, col_ind_ignored))
+
+            # Filter out matches with costs below NON_MATCHING_COST after the second stage
+            valid_ignored_match_result = [
+                (r, c) for r, c in ignored_match_result if cost_matrix[r, c] < NON_MATCHING_COST
+            ]
+
+            # Combine the results from both stages
+            valid_match_result.extend(valid_ignored_match_result)
+
+        return valid_match_result
+
+    def process(self, data):
+        # Use the existing process method from HungarianMatcher
+        super().process(data)
+
+
+
+class TwoStageParallelHungarianMatcher(ParallelHungarianMatcher, TwoStageHungarianMatcher):
     def __init__(self, n_jobs=5):
         # Initialize both parent classes
         ParallelHungarianMatcher.__init__(self, n_jobs=n_jobs)
-        HungarianIouMatcher.__init__(self)
+        TwoStageHungarianMatcher.__init__(self)
+
+
+class TwoStageParallelHungarianMatcher(ParallelHungarianMatcher,TwoStageHungarianMatcher):
+    def __init__(self, n_jobs=5):
+        # Initialize both parent classes
+        ParallelHungarianMatcher.__init__(self, n_jobs=n_jobs)
+        TwoStageHungarianMatcher.__init__(self)

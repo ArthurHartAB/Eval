@@ -7,6 +7,14 @@
             "x_label": "Recall Strict",
             "y_label": "Precision Strict",
             "file_suffix": "pr_curve_strict"
+        },
+        {
+            "x_metric": "tp",
+            "y_metrics": "fa_rand + fa_loc + fa_dbl",
+            "plot_name": "FA-TP",
+            "x_label": "tp",
+            "y_label": "fa",
+            "file_suffix": "fa_tp_curve"
         }
     ]
 }

@@ -1,9 +1,11 @@
 import argparse
 from src.data import Data
 from src.match import HungarianMatcher, \
+                      TwoStageHungarianMatcher,\
                       GreedyMatcher, \
                       ParallelGreedyMatcher, \
-                      ParallelHungarianMatcher
+                      ParallelHungarianMatcher, \
+                      TwoStageParallelHungarianMatcher
 from src.metrics import Metrics
 from src.plotter import Plotter
 
@@ -15,7 +17,9 @@ def parse_arguments():
     parser.add_argument("--labels_config_path", type=str, required=True, help="Path to labels configuration file.")
     parser.add_argument("--plot_config_path", type=str, required=True, help="Path to plot configuration file.")
     parser.add_argument("--output_path", type=str, required=True, help="Path to save the outputs.")
-    parser.add_argument("--matcher_type", type=str, choices=["hungarian", "greedy_score", "greedy_iou", "parallel_greedy_score", "parallel_greedy_iou", "parallel_hungarian"], 
+    parser.add_argument("--matcher_type", type=str, choices=["hungarian", "two_stage_hungarian","greedy_score", \
+                                                             "greedy_iou", "parallel_greedy_score", \
+                                                            "parallel_greedy_iou", "parallel_hungarian", "two_stage_parallel_hungarian"], 
                         default="hungarian_parallel", help="Type of matcher to use.")
     return parser.parse_args()
 
@@ -32,9 +36,11 @@ if __name__ == "__main__":
     # Initialize and perform matching
     matcher = {
         'hungarian': HungarianMatcher,
+        'two_stage_hungarian' : TwoStageHungarianMatcher,
         'greedy_score': GreedyMatcher,
         'parallel_greedy_iou': ParallelGreedyMatcher,
-        'parallel_hungarian': ParallelHungarianMatcher
+        'parallel_hungarian': ParallelHungarianMatcher,
+        'two_stage_parallel_hungarian': TwoStageParallelHungarianMatcher
     }[args.matcher_type]()
     matcher.process(data)
 

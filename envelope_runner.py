@@ -125,7 +125,7 @@ if __name__ == "__main__":
     }[args.matcher_type]()
 
     # Define thresholds for processing
-    thresholds = list(range(0, 100, 5))  # Example threshold values, customize as needed
+    thresholds = list(range(0, 100, 10))  # Example threshold values, customize as needed
 
     # Process metrics for each threshold
     metrics_dict = process_thresholds(data, thresholds, matcher)

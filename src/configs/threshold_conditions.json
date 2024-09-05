@@ -1,14 +1,14 @@
 {
     "4w" : {
-        "incl_condition" : "fa_rand <= tp*0.03",
-        "excl_condition" : "fa_rand == 0 and fa_loc + fa_dbl <= 1"
+        "ignore_condition" : "fa_rand + fa_loc + fa_dbl <= tp_excl*0.02",
+        "remove_condition" : "fa_rand + fa_loc + fa_dbl <= tp_incl*0.3"
     },
     "ped" : {
-        "incl_condition" : "fa_rand <= 3",
-        "excl_condition" : "fa_rand <= 2"
+        "ignore_condition" : "fa_rand + fa_loc + fa_dbl <= tp_excl*0.02",
+        "remove_condition" : "fa_rand + fa_loc + fa_dbl <= tp_incl*0.3"
     },
     "2w" : {
-        "incl_condition" : "fa_rand <= 3",
-        "excl_condition" : "fa_rand <= 2"
+        "ignore_condition" : "fa_rand + fa_loc + fa_dbl <= tp_excl*0.02",
+        "remove_condition" : "fa_rand + fa_loc + fa_dbl <= tp_incl*0.3"
     }
 }
