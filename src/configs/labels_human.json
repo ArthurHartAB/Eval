@@ -4,21 +4,16 @@
                        "BUS", "TRUCK_NLV", "BUS_CIPV", "TRUCK_CIPV", "BUS_NLV", 
                        "VAN_CIPV", "TRAILER", "TOW_TRUCK", "RV", "CONSTRUCTION_VEHICLE", "TRAILER"],
         "det_labels" : ["4w", "4w_ignore", "4w_remove"],
-        "gt_ignore_condition" : "(ignore_state > 0)"
+        "gt_ignore_condition" : "not (ignore_state.isin([0, '0']))"
     },
-    "ped" : {
-        "gt_labels" : ["PERSON", "PERSON_MCP", "CHILD", "CHILD_MCP", "PEDESTRIAN", "PEDESTRIAN_MCP"],
-        "det_labels" : ["ped", "ped_ignore", "ped_remove"],
-        "gt_ignore_condition" :  "(ignore_state > 0)"
+    "human" : {
+        "gt_labels" : ["PERSON", "PERSON_MCP", "CHILD", "CHILD_MCP", "PEDESTRIAN", "PEDESTRIAN_MCP", "RIDER", "RIDER_MCP", "RIDER_MCP", "RIDER_NLV"],
+        "det_labels" : ["ped", "ped_ignore", "ped_remove", "rider", "rider_ignore", "rider_remove"],
+        "gt_ignore_condition" :  "not (ignore_state.isin([0, '0']))"
     },
     "2w" : {
         "gt_labels" : ["BIKE", "BIKE_CIPV", "BIKE_NLV", "KICK_SCOOTER", "KICK_SCOOTER_CIPV","KICK_SCOOTER_NLV", "MOTOR", "MOTOR_CIPV", "MOTOR_NLV", "TRICYCLE"],
         "det_labels" : ["2w", "2w_ignore", "2w_remove"],
-        "gt_ignore_condition" :  "(ignore_state > 0)"
-    },
-    "rider" : {
-        "gt_labels" : ["RIDER", "RIDER_MCP", "RIDER_MCP", "RIDER_NLV"],
-        "det_labels" : ["rider", "rider_ignore", "rider_remove"],
-        "gt_ignore_condition" :  "(ignore_state > 0)"
+        "gt_ignore_condition" :  "not (ignore_state.isin([0, '0']))"
     }
 }

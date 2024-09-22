@@ -1,0 +1,35 @@
+{
+    "4w" : {
+        "gt_labels" : [ 
+        "CAR",
+        "VAN",
+        "TRUCK",
+        "BUS",
+        "OPEN_CAR_DOOR",
+        "TOW_TRUCK",
+        "RV",
+        "CONSTRUCTION_VEHICLE",
+        "TRAIN",
+        "4w_ignore",
+        "TRAILER"
+        ],
+        "det_labels" : [
+        "IGNORE_VEHICLE",
+        "CAR",
+        "4w",
+        "4w_ignore"
+        ],
+        "gt_ignore_condition" : "(label.isin(['4w_ignore', 'TRAILER']))"
+    },
+    "ped" : {
+        "gt_labels" : [
+            "CHILD",
+            "PERSON",
+            "IGNORE_PEDESTRIAN",
+            "rider_ignore",
+            "RIDER"
+        ],
+        "det_labels" : ["IGNORE_PEDESTRIAN", "PEDESTRIAN", "ped", "ped_ignore"],
+        "gt_ignore_condition" :  "(label.isin(['IGNORE_PEDESTRIAN', 'rider_ignore', 'RIDER']))"
+    }
+}

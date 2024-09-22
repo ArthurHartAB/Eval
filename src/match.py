@@ -22,6 +22,7 @@ class HungarianMatcher:
         # Iterate through each family in labels_config
         for family, config in data.labels_config.items():
             gt_labels = config['gt_labels']
+
             det_labels = config['det_labels']
             gt_ignore_condition = config.get('gt_ignore_condition', None)
 
@@ -35,6 +36,7 @@ class HungarianMatcher:
                 gt_filtered_family['eval_ignore'] = gt_filtered_family.eval(gt_ignore_condition)
             else:
                 gt_filtered_family['eval_ignore'] = False
+
 
             # Process each image within this family
             for image_name in tqdm(gt_filtered_family['name'].unique(), desc=f'Processing {family}'):
@@ -205,7 +207,7 @@ class HungarianMatcher:
         for det_i, det_idx in det_index_map.items():
             if det_df.at[det_idx, 'match_status'] == 'fa':
                 max_iou_with_any_gt = iou_matrix[:, det_i].max()  # Maximum IoU of this detection with any GT
-
+                det_df.at[det_idx, 'max_iou'] = max_iou_with_any_gt # may be issues with indices, need to check
                 if max_iou_with_any_gt > MATCH_IOU:
                     det_df.at[det_idx, 'match_status'] = 'fa_dbl'
                 elif max_iou_with_any_gt > LOC_IOU:

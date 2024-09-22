@@ -9,12 +9,12 @@
             "file_suffix": "pr_curve_strict"
         },
         {
-            "x_metric": "tp",
-            "y_metrics": "fa_rand + fa_loc + fa_dbl",
-            "plot_name": "FA-TP",
-            "x_label": "tp",
-            "y_label": "fa",
-            "file_suffix": "fa_tp_curve"
+            "x_metric": "fa_rand",
+            "y_metrics": "recall_strict",
+            "plot_name": "fa rand vs score",
+            "x_label": "FA rand",
+            "y_label": "Recall Strict",
+            "file_suffix": "fa_rand_vs_recall"
         }
     ]
 }

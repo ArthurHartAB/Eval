@@ -32,7 +32,7 @@ def create_and_save_plots(eval_data, plot_config, output_dir):
     excluded_data = {}
 
     for eval_name, data in eval_data.items():
-        included_data[eval_name] = data['included']
+        included_data[eval_name] = data['included'][data['excluded'].bin != 'other']
         excluded_data[eval_name] = data['excluded'][data['excluded'].bin != 'other']
 
         #included_data[eval_name] = included_data[eval_name][included_data[eval_name].score_threshold >= 10]

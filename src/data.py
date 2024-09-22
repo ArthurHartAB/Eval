@@ -13,6 +13,18 @@ class Data:
         # Load data
         self.gt_df = self.load_gt()
         self.det_df = self.load_det()
+
+        if 'codetr_score' in self.det_df.columns:
+            self.det_df = self.det_df.rename(columns = {"codetr_score" : "score", "codetr_label" : "label"})
+
+        if 'codetr_handling_hint' in self.det_df.columns:
+            self.det_df = self.det_df[self.det_df.codetr_handling_hint.isin(["keep", "ignore", "remove", "small"])]
+
+
+        self.det_df = self.det_df[self.det_df.score > 10]
+
+        self.det_df['name'] = self.det_df['name'].apply(lambda x: x if str(x).endswith('.png') else f"{x}.png")
+
         self.labels_config = self.load_json(self.labels_config_path)
         self.bins_config = self.load_json(self.bins_path)
         self.plot_config = self.load_json(self.plot_config_path)
